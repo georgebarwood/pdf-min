@@ -22,7 +22,7 @@ impl Default for BasicPdfWriter {
             b,
             xref: Vec::new(),
             comp: flate3::Compressor::default(),
-            nocomp: true,
+            nocomp: false,
         }
     }
 }

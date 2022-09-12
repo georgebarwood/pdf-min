@@ -13,6 +13,7 @@ pub struct Writer {
     pub fonts: Vec<Box<dyn Font>>,
     pub cur_font: usize, // index into fonts
     pub font_size: i16,
+    pub sup: i16,
     pub mode: Mode,
     pub title: String,
     pub pages: Vec<Page>,
@@ -20,11 +21,14 @@ pub struct Writer {
 
     pub line_pad: i16,
     pub margin_left: i16,
+    pub margin_right: i16,
+    pub margin_top: i16,
     pub margin_bottom: i16,
     pub page_width: i16,
     pub page_height: i16,
 
     pub skip_space: bool, // White space is to be ignored.
+    pub line_used: i16,
 }
 
 impl Default for Writer {
@@ -36,6 +40,7 @@ impl Default for Writer {
             fonts: Vec::new(),
             cur_font: 0,
             font_size: 10,
+            sup: 0,
             p: Page::default(),
             pages: Vec::new(),
             new_page: true,
@@ -43,9 +48,12 @@ impl Default for Writer {
             page_width: 400,
             page_height: 600,
             line_pad: 4,
-            margin_left: 10,
-            margin_bottom: 10,
+            margin_left: 20,
+            margin_right: 20,
+            margin_top: 20,
+            margin_bottom: 20,
             skip_space: true,
+            line_used: 0,
         };
         for _ in 0..4 {
             x.fonts.push(Box::new(StandardFont::new()));
@@ -60,12 +68,15 @@ impl Writer {
         self.p.height = self.page_height;
         self.p.goto(
             self.margin_left,
-            self.p.height - self.font_size - self.line_pad,
+            self.p.height - self.font_size - self.margin_top,
         );
+        if self.sup != 0 {
+            self.p.set_sup(self.sup);
+        }
     }
 
     pub fn new_page(&mut self) {
-        let p = std::mem::replace(&mut self.p, Page::default());
+        let p = std::mem::take(&mut self.p);
         self.pages.push(p);
         self.new_page = true;
     }
@@ -75,26 +86,61 @@ impl Writer {
         f.init(&mut self.b, HELVETICA[x]);
     }
 
-    pub fn text(&mut self, s: &[u8]) {
+    fn width(&self, _c: char) -> u64 {
+        // Ought to take some account of upper/lower case.
+        // This is rather preliminary.
+        if (self.cur_font & 1) == 1 {
+            550
+        } else {
+            500
+        }
+    }
+
+    fn wrap_text(&mut self, s: &str) {
+        if self.new_page {
+            self.init_page();
+            self.new_page = false;
+        }
+
+        let mut w = 0;
+        for c in s.chars() {
+            w += self.width(c);
+        }
+        let w = (w * self.font_size as u64 / 1000) as i16;
+
+        let line_len = self.page_width - self.margin_left - self.margin_right;
+        if self.line_used + w > line_len {
+            self.new_line();
+            if s == " " {
+                return;
+            }
+        }
+        self.line_used += w;
+
+        self.init_font(self.cur_font);
+        let f = &*self.fonts[self.cur_font];
+        self.p.text(f, self.font_size, s);
+    }
+
+    pub fn text(&mut self, s: &str) {
         match self.mode {
             Mode::Normal => {
-                self.init_font(self.cur_font);
-                if self.new_page {
-                    self.init_page();
-                    self.new_page = false;
-                }
-                let f = &mut self.fonts[self.cur_font];
-                self.p.text(f, self.font_size, tosl(s));
+                self.wrap_text(s);
             }
             Mode::Title => {
-                self.title += tosl(s);
+                self.title += s;
             }
             Mode::Head => {}
         }
     }
 
     pub fn space(&mut self) {
-        self.text(b" ");
+        self.text(" ");
+    }
+
+    pub fn set_sup(&mut self, sup: i16) {
+        self.sup = sup;
+        self.p.set_sup(sup);
     }
 
     pub fn new_line(&mut self) {
@@ -111,6 +157,7 @@ impl Writer {
                 self.new_page = false;
             }
         }
+        self.line_used = 0;
     }
 
     pub fn finish(&mut self) {
@@ -118,18 +165,18 @@ impl Writer {
         self.new_page();
         let n = self.pages.len();
         let mut pnum = 1;
-        let font_size = self.font_size;
+        let font_size = 8;
         for p in &mut self.pages {
             p.goto(self.margin_left, self.line_pad);
             p.text(
-                &self.fonts[0],
+                &*self.fonts[0],
                 font_size,
                 &format!("Page {} of {}", pnum, n),
             );
             p.finish();
             pnum += 1;
         }
-        self.b.finish(&self.pages, &self.title.as_bytes());
+        self.b.finish(&self.pages, self.title.as_bytes());
     }
 }
 
@@ -271,7 +318,9 @@ fn html_inner(w: &mut Writer, p: &mut Parser, endtag: &[u8]) {
                 p.read_token();
             }
             Token::Text => {
-                w.text(p.tvalue());
+                let s = tosl(p.tvalue());
+                let s = &html_escape::decode_html_entities(s);
+                w.text(s);
                 w.skip_space = false;
                 p.read_token();
             }
@@ -279,12 +328,13 @@ fn html_inner(w: &mut Writer, p: &mut Parser, endtag: &[u8]) {
                 w.skip_space = true;
                 let tag = p.tvalue();
 
-                if tag == b"p" && tag == endtag {
-                    return;
-                } else if p.end_tag {
+                if p.end_tag {
                     if tag == endtag {
                         p.read_token();
                     }
+                    return;
+                }
+                else if tag == b"p" && tag == endtag {
                     return;
                 }
                 p.read_token();
@@ -308,11 +358,11 @@ fn html_inner(w: &mut Writer, p: &mut Parser, endtag: &[u8]) {
                         b"body" => w.mode = Mode::Normal,
                         b"sup" => {
                             save = w.p.sup;
-                            w.p.set_sup(w.font_size as i16 / 2);
+                            w.set_sup(w.font_size as i16 / 2);
                         }
                         b"sub" => {
                             save = w.p.sup;
-                            w.p.set_sup(-(w.font_size as i16) / 2);
+                            w.set_sup(-(w.font_size as i16) / 2);
                         }
                         _ => {}
                     }
@@ -321,7 +371,7 @@ fn html_inner(w: &mut Writer, p: &mut Parser, endtag: &[u8]) {
                     w.font_size = save_font_size;
                     w.cur_font = save_font;
                     match tag {
-                        b"sup" | b"sub" => w.p.set_sup(save),
+                        b"sup" | b"sub" => w.set_sup(save),
                         b"h1" => w.new_line(),
                         _ => {}
                     }

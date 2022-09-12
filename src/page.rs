@@ -62,7 +62,7 @@ impl Page {
     }
 
     /// Append text ( encoded with font ).
-    pub fn text(&mut self, font: &Box<dyn Font>, size: i16, s: &str) {
+    pub fn text(&mut self, font: &dyn Font, size: i16, s: &str) {
         if size != self.font_size || font.obj() != self.font_obj {
             self.flush_text();
             self.font_obj = font.obj();
