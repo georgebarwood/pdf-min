@@ -97,8 +97,7 @@ impl Writer {
         }
     }
 
-    fn line_len(&self)->i16
-    {
+    fn line_len(&self) -> i16 {
         self.page_width - self.margin_left - self.margin_right
     }
 
@@ -132,7 +131,11 @@ impl Writer {
         if self.new_page {
             self.init_page();
         } else {
-            let cx = if self.center == 1 { (self.line_len() - self.line_used) / 2} else {0};
+            let cx = if self.center == 1 {
+                (self.line_len() - self.line_used) / 2
+            } else {
+                0
+            };
             let h = self.max_font_size + self.line_pad;
             if self.p.y >= h + self.margin_bottom {
                 self.p.td(self.margin_left + cx - self.p.x, -h);
@@ -178,7 +181,7 @@ impl Writer {
         self.p.set_sup(sup);
     }
 
-    pub fn finish(&mut self) { 
+    pub fn finish(&mut self) {
         self.output_line();
         self.init_font(0);
         self.save_page();
@@ -404,7 +407,10 @@ fn html_inner(w: &mut Writer, p: &mut Parser, endtag: &[u8]) {
                     w.cur_font = save_font;
                     match tag {
                         b"sup" | b"sub" => w.set_sup(save),
-                        b"h1" => { w.output_line(); w.center = save; }
+                        b"h1" => {
+                            w.output_line();
+                            w.center = save;
+                        }
                         _ => {}
                     }
                 }
