@@ -1,18 +1,5 @@
 use crate::*;
 
-#[derive(Clone, Copy)]
-pub enum Mode {
-    Normal,
-    Head,
-    Title,
-}
-
-/// For items that go to make define a line of text.
-pub enum Item {
-    Text(String, usize, i16),
-    Sup(i16),
-}
-
 pub struct Writer {
     pub b: BasicPdfWriter,
     pub p: Page,
@@ -38,8 +25,7 @@ pub struct Writer {
     pub line_used: i16,
     pub line: Vec<Item>,
     pub max_font_size: i16,
-    pub center: bool,
-    pub spare_width: i16,
+    pub center: i16,
 }
 
 impl Default for Writer {
@@ -67,8 +53,7 @@ impl Default for Writer {
             line_used: 0,
             line: Vec::new(),
             max_font_size: 0,
-            spare_width: 0,
-            center: false,
+            center: 0,
         };
         for _ in 0..4 {
             x.fonts.push(Box::new(StandardFont::new()));
@@ -88,9 +73,10 @@ impl Writer {
         if self.sup != 0 {
             self.p.set_sup(self.sup);
         }
+        self.new_page = false;
     }
 
-    pub fn new_page(&mut self) {
+    pub fn save_page(&mut self) {
         let p = std::mem::take(&mut self.p);
         self.pages.push(p);
         self.new_page = true;
@@ -119,7 +105,6 @@ impl Writer {
     fn wrap_text(&mut self, s: &str) {
         if self.new_page {
             self.init_page();
-            self.new_page = false;
         }
 
         let mut w = 0;
@@ -129,7 +114,7 @@ impl Writer {
         let w = (w * self.font_size as u64 / 1000) as i16;
 
         if self.line_used + w > self.line_len() {
-            self.new_line();
+            self.output_line();
             if s == " " {
                 return;
             }
@@ -143,19 +128,17 @@ impl Writer {
             .push(Item::Text(s.to_string(), self.cur_font, self.font_size));
     }
 
-    fn output_line(&mut self) {
+    pub fn output_line(&mut self) {
         if self.new_page {
             self.init_page();
-            self.new_page = false;
         } else {
-            let cx = if self.center { (self.line_len() - self.line_used) / 2} else {0};
+            let cx = if self.center == 1 { (self.line_len() - self.line_used) / 2} else {0};
             let h = self.max_font_size + self.line_pad;
             if self.p.y >= h + self.margin_bottom {
                 self.p.td(self.margin_left + cx - self.p.x, -h);
             } else {
-                self.new_page();
+                self.save_page();
                 self.init_page();
-                self.new_page = false;
             }
         }
         for item in &self.line {
@@ -195,14 +178,10 @@ impl Writer {
         self.p.set_sup(sup);
     }
 
-    pub fn new_line(&mut self) {
-        self.output_line();
-    }
-
     pub fn finish(&mut self) { 
         self.output_line();
         self.init_font(0);
-        self.new_page();
+        self.save_page();
         let n = self.pages.len();
         let mut pnum = 1;
         let font_size = 8;
@@ -218,6 +197,19 @@ impl Writer {
         }
         self.b.finish(&self.pages, self.title.as_bytes());
     }
+}
+
+#[derive(Clone, Copy)]
+pub enum Mode {
+    Normal,
+    Head,
+    Title,
+}
+
+/// Items that define a line of text.
+pub enum Item {
+    Text(String, usize, i16),
+    Sup(i16),
 }
 
 /// Convert byte slice into string.
@@ -346,7 +338,6 @@ impl<'a> Parser<'a> {
 
 fn html_inner(w: &mut Writer, p: &mut Parser, endtag: &[u8]) {
     loop {
-        // println!("token {:?} tvalue={} end_tag={}", p.token, tosl(p.tvalue()), p.end_tag);
         match p.token {
             Token::Eof => {
                 return;
@@ -378,18 +369,19 @@ fn html_inner(w: &mut Writer, p: &mut Parser, endtag: &[u8]) {
                 }
                 p.read_token();
                 if tag == b"br" || tag == b"br/" {
-                    w.new_line();
+                    w.output_line();
                 } else {
                     let save_mode = w.mode;
                     let save_font = w.cur_font;
                     let save_font_size = w.font_size;
                     let mut save: i16 = 0;
                     match tag {
-                        b"p" => w.new_line(),
+                        b"p" => w.output_line(),
                         b"h1" => {
                             w.font_size = 14;
-                            w.new_line();
-                            w.center = true;
+                            w.output_line();
+                            save = w.center;
+                            w.center = 1;
                         }
                         b"b" => w.cur_font |= 1,
                         b"i" => w.cur_font |= 2,
@@ -412,7 +404,7 @@ fn html_inner(w: &mut Writer, p: &mut Parser, endtag: &[u8]) {
                     w.cur_font = save_font;
                     match tag {
                         b"sup" | b"sub" => w.set_sup(save),
-                        b"h1" => { w.new_line(); w.center = false; }
+                        b"h1" => { w.output_line(); w.center = save; }
                         _ => {}
                     }
                 }
