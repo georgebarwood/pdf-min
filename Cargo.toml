@@ -1,6 +1,6 @@
 [package]
 name = "pdf-min"
-version = "0.1.3"
+version = "0.1.6"
 edition = "2021"
 authors = ["George Barwood"]
 description = "Very minimal crate for writing PDFs"
