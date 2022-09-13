@@ -7,6 +7,12 @@ pub enum Mode {
     Title,
 }
 
+/// For items that go to make define a line of text.
+pub enum Item {
+    Text(String, usize, i16),
+    Sup(i16),
+}
+
 pub struct Writer {
     pub b: BasicPdfWriter,
     pub p: Page,
@@ -28,7 +34,12 @@ pub struct Writer {
     pub page_height: i16,
 
     pub skip_space: bool, // White space is to be ignored.
+
     pub line_used: i16,
+    pub line: Vec<Item>,
+    pub max_font_size: i16,
+    pub center: bool,
+    pub spare_width: i16,
 }
 
 impl Default for Writer {
@@ -54,6 +65,10 @@ impl Default for Writer {
             margin_bottom: 20,
             skip_space: true,
             line_used: 0,
+            line: Vec::new(),
+            max_font_size: 0,
+            spare_width: 0,
+            center: false,
         };
         for _ in 0..4 {
             x.fonts.push(Box::new(StandardFont::new()));
@@ -96,6 +111,11 @@ impl Writer {
         }
     }
 
+    fn line_len(&self)->i16
+    {
+        self.page_width - self.margin_left - self.margin_right
+    }
+
     fn wrap_text(&mut self, s: &str) {
         if self.new_page {
             self.init_page();
@@ -108,18 +128,50 @@ impl Writer {
         }
         let w = (w * self.font_size as u64 / 1000) as i16;
 
-        let line_len = self.page_width - self.margin_left - self.margin_right;
-        if self.line_used + w > line_len {
+        if self.line_used + w > self.line_len() {
             self.new_line();
             if s == " " {
                 return;
             }
         }
         self.line_used += w;
-
         self.init_font(self.cur_font);
-        let f = &*self.fonts[self.cur_font];
-        self.p.text(f, self.font_size, s);
+        if self.font_size > self.max_font_size {
+            self.max_font_size = self.font_size;
+        }
+        self.line
+            .push(Item::Text(s.to_string(), self.cur_font, self.font_size));
+    }
+
+    fn output_line(&mut self) {
+        if self.new_page {
+            self.init_page();
+            self.new_page = false;
+        } else {
+            let cx = if self.center { (self.line_len() - self.line_used) / 2} else {0};
+            let h = self.max_font_size + self.line_pad;
+            if self.p.y >= h + self.margin_bottom {
+                self.p.td(self.margin_left + cx - self.p.x, -h);
+            } else {
+                self.new_page();
+                self.init_page();
+                self.new_page = false;
+            }
+        }
+        for item in &self.line {
+            match item {
+                Item::Text(s, f, x) => {
+                    let fp = &*self.fonts[*f];
+                    self.p.text(fp, *x, s);
+                }
+                Item::Sup(x) => {
+                    self.p.set_sup(*x);
+                }
+            }
+        }
+        self.line.clear();
+        self.line_used = 0;
+        self.max_font_size = 0;
     }
 
     pub fn text(&mut self, s: &str) {
@@ -144,23 +196,11 @@ impl Writer {
     }
 
     pub fn new_line(&mut self) {
-        if self.new_page {
-            self.init_page();
-            self.new_page = false;
-        } else {
-            let h = self.font_size + self.line_pad;
-            if self.p.y >= h + self.margin_bottom {
-                self.p.td(0, -h);
-            } else {
-                self.new_page();
-                self.init_page();
-                self.new_page = false;
-            }
-        }
-        self.line_used = 0;
+        self.output_line();
     }
 
-    pub fn finish(&mut self) {
+    pub fn finish(&mut self) { 
+        self.output_line();
         self.init_font(0);
         self.new_page();
         let n = self.pages.len();
@@ -333,8 +373,7 @@ fn html_inner(w: &mut Writer, p: &mut Parser, endtag: &[u8]) {
                         p.read_token();
                     }
                     return;
-                }
-                else if tag == b"p" && tag == endtag {
+                } else if tag == b"p" && tag == endtag {
                     return;
                 }
                 p.read_token();
@@ -350,6 +389,7 @@ fn html_inner(w: &mut Writer, p: &mut Parser, endtag: &[u8]) {
                         b"h1" => {
                             w.font_size = 14;
                             w.new_line();
+                            w.center = true;
                         }
                         b"b" => w.cur_font |= 1,
                         b"i" => w.cur_font |= 2,
@@ -372,7 +412,7 @@ fn html_inner(w: &mut Writer, p: &mut Parser, endtag: &[u8]) {
                     w.cur_font = save_font;
                     match tag {
                         b"sup" | b"sub" => w.set_sup(save),
-                        b"h1" => w.new_line(),
+                        b"h1" => { w.new_line(); w.center = false; }
                         _ => {}
                     }
                 }
