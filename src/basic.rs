@@ -28,12 +28,6 @@ impl Default for BasicPdfWriter {
 }
 
 impl BasicPdfWriter {
-    pub fn standard_font(&mut self, name: &str) -> Box<dyn Font> {
-        let mut f = StandardFont::new();
-        f.init(self, name);
-        Box::new(f)
-    }
-
     /// Allocate PDF object number.
     pub fn obj(&mut self) -> usize {
         self.xref.push(0);
@@ -46,6 +40,13 @@ impl BasicPdfWriter {
         let _ = wb!(&mut self.b, b"{} 0 obj\n", obj_num);
     }
 
+    /// Allocate PDF object and start definition.
+    pub fn begin(&mut self) -> usize {
+        let obj = self.obj();
+        self.start(obj);
+        obj
+    }
+
     /// End definition of PDF object.
     pub fn end(&mut self) {
         self.b.extend_from_slice(b"\nendobj\n");
@@ -56,9 +57,8 @@ impl BasicPdfWriter {
         let mut kids = Vec::new();
         let pagesobj = self.obj();
         for p in pages {
-            let contentobj = self.put_stream(&p.os);
-            let pageobj = self.obj();
-            self.start(pageobj);
+            let contentobj = self.stream(&p.os);
+            let pageobj = self.begin();
             let _ = wb!(&mut kids, b"{} 0 R ", pageobj);
             let _ = wb!(
                 &mut self.b,
@@ -68,9 +68,8 @@ impl BasicPdfWriter {
                 p.height,
                 contentobj
             );
-
-            self.put_resource_set(&p.fonts, b"/Font", b"/F");
-            self.put_resource_set(&p.xobjs, b"/XObject", b"/X");
+            self.resource_set(&p.fonts, b"/Font", b"/F");
+            self.resource_set(&p.xobjs, b"/XObject", b"/X");
             self.b.extend_from_slice(b" >> >>");
             self.end();
         }
@@ -83,13 +82,11 @@ impl BasicPdfWriter {
         );
         self.end();
 
-        let cat = self.obj();
-        self.start(cat);
+        let cat = self.begin();
         let _ = wb!(&mut self.b, b"<</Type/Catalog/Pages {} 0 R>>", pagesobj);
         self.end();
 
-        let info = self.obj();
-        self.start(info);
+        let info = self.begin();
         let _ = wb!(&mut self.b, b"<</Title({})>>", title);
         self.end();
 
@@ -112,7 +109,7 @@ impl BasicPdfWriter {
         let _ = wb!(&mut self.b, b"\nstartxref\n{}\n%%EOF\n", startxref);
     }
 
-    fn put_resource_set(&mut self, s: &BTreeSet<usize>, n1: &[u8], n2: &[u8]) {
+    fn resource_set(&mut self, s: &BTreeSet<usize>, n1: &[u8], n2: &[u8]) {
         if !s.is_empty() {
             let _ = wb!(&mut self.b, b"{}<<", n1);
             for i in s {
@@ -122,9 +119,9 @@ impl BasicPdfWriter {
         }
     }
 
-    fn put_stream(&mut self, data: &[u8]) -> usize {
-        let obj = self.obj();
-        self.start(obj);
+    /// Output a stream (possibly compressed ), result is obj number.
+    pub fn stream(&mut self, data: &[u8]) -> usize {
+        let obj = self.begin();
         if self.nocomp {
             let _ = wb!(&mut self.b, b"<</Length {}>>stream\n", data.len());
             self.b.extend_from_slice(data);
@@ -137,7 +134,6 @@ impl BasicPdfWriter {
             );
             self.b.extend_from_slice(&cb);
         }
-
         self.b.extend_from_slice(b"\nendstream");
         self.end();
         obj

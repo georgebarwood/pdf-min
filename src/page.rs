@@ -2,6 +2,7 @@ use crate::font::Font;
 use format_bytes::write_bytes as wb;
 use std::collections::BTreeSet;
 
+///
 #[derive(Default)]
 pub struct Page {
     /// Page width.
@@ -135,6 +136,7 @@ impl Page {
         let _ = wb!(&mut self.os, b"\n{} {} m {} {} re S", x0, y0, x1, y1);
     }
 
+    /// Set level of text on line.
     pub fn set_sup(&mut self, sup: i16) {
         if self.sup != sup {
             self.flush_text();

@@ -1,9 +1,9 @@
 //! This crate implements minimal conversion from HTML to PDF.
 //!
 //! ToDo:
-//! Proper parsing of tags ( currently using > in a tag does not work correctly ).
-//! Html tables, font sizing.
-//! A whole lot moree.
+//! Proper parsing of tag attibutes.
+//! Font sizing, html tables.
+//! A whole lot more.
 
 //!# Test example
 //!
@@ -37,9 +37,16 @@
 //!    file.write_all(&w.b.b).unwrap();
 //! ```
 
+#![forbid(unsafe_code)]
+#![warn(missing_docs)]
+
+/// Low level PDF writer.
 pub mod basic;
+/// PDF fonts.
 pub mod font;
+/// PDF page.
 pub mod page;
+/// High level PDF writer.
 pub mod writer;
 
 use basic::*;

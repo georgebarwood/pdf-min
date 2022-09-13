@@ -1,30 +1,51 @@
 use crate::*;
 
+///
 pub struct Writer {
+    ///
     pub b: BasicPdfWriter,
+    ///
     pub p: Page,
+    ///
     pub fonts: Vec<Box<dyn Font>>,
+    ///
     pub cur_font: usize, // index into fonts
+    ///
     pub font_size: i16,
+    ///
     pub sup: i16,
+    ///
     pub mode: Mode,
+    ///
     pub title: String,
+    ///
     pub pages: Vec<Page>,
+    ///
     pub new_page: bool,
 
+    ///
     pub line_pad: i16,
+    ///
     pub margin_left: i16,
+    ///
     pub margin_right: i16,
+    ///
     pub margin_top: i16,
+    ///
     pub margin_bottom: i16,
+    ///
     pub page_width: i16,
+    ///
     pub page_height: i16,
-
+    ///
     pub skip_space: bool, // White space is to be ignored.
-
+    ///
     pub line_used: i16,
+    ///
     pub line: Vec<Item>,
+    ///
     pub max_font_size: i16,
+    ///
     pub center: i16,
 }
 
@@ -56,14 +77,15 @@ impl Default for Writer {
             center: 0,
         };
         for _ in 0..4 {
-            x.fonts.push(Box::new(StandardFont::new()));
+            x.fonts.push(Box::new(StandardFont::default()));
         }
         x
     }
 }
 
 impl Writer {
-    pub fn init_page(&mut self) {
+    ///
+    fn init_page(&mut self) {
         self.p.width = self.page_width;
         self.p.height = self.page_height;
         self.p.goto(
@@ -76,17 +98,20 @@ impl Writer {
         self.new_page = false;
     }
 
-    pub fn save_page(&mut self) {
+    ///
+    fn save_page(&mut self) {
         let p = std::mem::take(&mut self.p);
         self.pages.push(p);
         self.new_page = true;
     }
 
+    ///
     fn init_font(&mut self, x: usize) {
         let f = &mut self.fonts[x];
         f.init(&mut self.b, HELVETICA[x]);
     }
 
+    ///
     fn width(&self, _c: char) -> u64 {
         // Ought to take some account of upper/lower case.
         // This is rather preliminary.
@@ -97,10 +122,12 @@ impl Writer {
         }
     }
 
+    ///
     fn line_len(&self) -> i16 {
         self.page_width - self.margin_left - self.margin_right
     }
 
+    ///
     fn wrap_text(&mut self, s: &str) {
         if self.new_page {
             self.init_page();
@@ -127,6 +154,7 @@ impl Writer {
             .push(Item::Text(s.to_string(), self.cur_font, self.font_size));
     }
 
+    ///
     pub fn output_line(&mut self) {
         if self.new_page {
             self.init_page();
@@ -160,6 +188,7 @@ impl Writer {
         self.max_font_size = 0;
     }
 
+    ///
     pub fn text(&mut self, s: &str) {
         match self.mode {
             Mode::Normal => {
@@ -172,15 +201,18 @@ impl Writer {
         }
     }
 
+    ///
     pub fn space(&mut self) {
         self.text(" ");
     }
 
+    ///
     pub fn set_sup(&mut self, sup: i16) {
         self.sup = sup;
         self.p.set_sup(sup);
     }
 
+    ///
     pub fn finish(&mut self) {
         self.output_line();
         self.init_font(0);
@@ -202,16 +234,22 @@ impl Writer {
     }
 }
 
+///
 #[derive(Clone, Copy)]
 pub enum Mode {
+    ///
     Normal,
+    ///
     Head,
+    ///
     Title,
 }
 
 /// Items that define a line of text.
 pub enum Item {
+    ///
     Text(String, usize, i16),
+    ///
     Sup(i16),
 }
 
@@ -225,6 +263,7 @@ fn tosl(s: &[u8]) -> &str {
     std::str::from_utf8(s).unwrap()
 }
 
+/// Convert source html to PDF using Writer w.
 pub fn html(w: &mut Writer, source: &[u8]) {
     let mut p = Parser::new(source);
     p.read_token();
