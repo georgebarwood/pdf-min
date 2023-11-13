@@ -16,11 +16,11 @@
 //!</head>
 //!<body>
 //!<h1>Important Notice&excl;</h1>
-//!<p>Hello <b>something</p>
+//!<p>Hello <b>something bold</b> ok</p>
 //!<p>Hi <i>italic test</i>
-//!<p>Hi <i><b>bold italic test</b></i>
-//!<p>Hi <sup>sup test</sup>
-//!<p>Hi <sub>sub text</sub>
+//!<p>Hi <i><b>bold italic test</b> ok</i>
+//!<p>Hi <sup>sup test</sup> ok
+//!<p>Hi <sub>sub text</sub> ok
 //!<p>{}
 //!</body>
 //!</html>

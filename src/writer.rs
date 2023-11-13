@@ -38,8 +38,6 @@ pub struct Writer {
     ///
     pub page_height: i16,
     ///
-    pub skip_space: bool, // White space is to be ignored.
-    ///
     pub line_used: i16,
     ///
     pub line: Vec<Item>,
@@ -70,7 +68,6 @@ impl Default for Writer {
             margin_right: 20,
             margin_top: 20,
             margin_bottom: 20,
-            skip_space: true,
             line_used: 0,
             line: Vec::new(),
             max_font_size: 0,
@@ -209,6 +206,7 @@ impl Writer {
     ///
     pub fn set_sup(&mut self, sup: i16) {
         self.line.push(Item::Sup(sup));
+        self.sup = sup;
     }
 
     ///
@@ -384,22 +382,17 @@ fn html_inner(w: &mut Writer, p: &mut Parser, endtag: &[u8]) {
                 return;
             }
             Token::WhiteSpace => {
-                if !w.skip_space {
-                    w.space();
-                }
+                w.space();
                 p.read_token();
             }
             Token::Text => {
                 let s = tosl(p.tvalue());
                 let s = &html_escape::decode_html_entities(s);
                 w.text(s);
-                w.skip_space = false;
                 p.read_token();
             }
             Token::Tag => {
-                w.skip_space = true;
                 let tag = p.tvalue();
-
                 if p.end_tag {
                     if tag == endtag {
                         p.read_token();
