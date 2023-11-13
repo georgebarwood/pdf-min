@@ -19,13 +19,14 @@
 //!<p>Hello <b>something</p>
 //!<p>Hi <i>italic test</i>
 //!<p>Hi <i><b>bold italic test</b></i>
-//!<p>Test <sup>sup</sup>
-//!<p>Test <sub>sub</sub>
+//!<p>Hi <sup>sup test</sup>
+//!<p>Hi <sub>sub text</sub>
 //!<p>{}
 //!</body>
 //!</html>
 //!","Some words to cause Line and Page wrapping ".repeat(200));
 //!    let mut w = Writer::default();
+//!    w.b.nocomp = true;
 //!    w.line_pad = 8; // Other Writer default values could be adjusted here.
 //!    html(&mut w, source.as_bytes());
 //!    w.finish();

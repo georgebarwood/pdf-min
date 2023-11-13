@@ -77,7 +77,7 @@ impl Default for Writer {
             center: 0,
         };
         for _ in 0..4 {
-            x.fonts.push(Box::new(StandardFont::default()));
+            x.fonts.push(Box::<StandardFont>::default());
         }
         x
     }
@@ -208,8 +208,7 @@ impl Writer {
 
     ///
     pub fn set_sup(&mut self, sup: i16) {
-        self.sup = sup;
-        self.p.set_sup(sup);
+        self.line.push(Item::Sup(sup));
     }
 
     ///
@@ -431,12 +430,12 @@ fn html_inner(w: &mut Writer, p: &mut Parser, endtag: &[u8]) {
                         b"html" | b"head" => w.mode = Mode::Head,
                         b"body" => w.mode = Mode::Normal,
                         b"sup" => {
-                            save = w.p.sup;
-                            w.set_sup(w.font_size as i16 / 2);
+                            save = w.sup;
+                            w.set_sup(w.font_size / 2);
                         }
                         b"sub" => {
-                            save = w.p.sup;
-                            w.set_sup(-(w.font_size as i16) / 2);
+                            save = w.sup;
+                            w.set_sup(-w.font_size / 2);
                         }
                         _ => {}
                     }
