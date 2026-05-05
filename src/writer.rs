@@ -96,7 +96,7 @@ impl Writer {
     }
 
     ///
-    fn save_page(&mut self) {
+    pub fn save_page(&mut self) {
         let p = std::mem::take(&mut self.p);
         self.pages.push(p);
         self.new_page = true;
