@@ -1,11 +1,12 @@
 [package]
 name = "pdf-min"
-version = "0.1.11"
-edition = "2021"
+version = "0.1.13"
+edition = "2024"
 authors = ["George Barwood"]
 description = "Very minimal crate for writing PDFs"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/georgebarwood/pdf-min/"
+include = ["/src"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -14,3 +15,6 @@ encoding_rs = "0.8.31"
 flate3 = "1.0.0"
 format-bytes = "0.3.0"
 html-escape = "0.2.11"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
