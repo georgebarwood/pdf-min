@@ -2,7 +2,7 @@ use crate::font::Font;
 use format_bytes::write_bytes as wb;
 use std::collections::BTreeSet;
 
-///
+/// PDF Page, has buffered text stream, text position, font.
 #[derive(Default)]
 pub struct Page {
     /// Page width.

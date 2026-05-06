@@ -1,7 +1,7 @@
 use crate::basic::BasicPdfWriter;
 use format_bytes::write_bytes as wb;
 
-///
+/// Font
 pub trait Font {
     /// Get the PDF object number.
     fn obj(&self) -> usize;
@@ -11,7 +11,7 @@ pub trait Font {
     fn init(&mut self, w: &mut BasicPdfWriter, name: &str);
 }
 
-///
+/// Standard Font
 #[derive(Default)]
 pub struct StandardFont {
     obj: usize,

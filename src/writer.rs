@@ -1,50 +1,51 @@
 use crate::*;
 
-///
+/// Writer - has support for wrapping text, page layout, fonts, etc.
 pub struct Writer {
-    ///
+    /// Underlying Basic Writer
     pub b: BasicPdfWriter,
-    ///
+    /// Current Page
     pub p: Page,
-    ///
+    /// List of fonts
     pub fonts: Vec<Box<dyn Font>>,
-    ///
-    pub cur_font: usize, // index into fonts
-    ///
+    /// Index into fonts
+    pub cur_font: usize,
+    /// Current font size
     pub font_size: i16,
-    ///
+    /// Current sup ( raises text up off line ), use set_sup to adjust it
     pub sup: i16,
-    ///
+    /// Writing mode
     pub mode: Mode,
-    ///
+    /// PDF title
     pub title: String,
-    ///
+    /// List of Pages
     pub pages: Vec<Page>,
-    ///
+    /// Page is new ( not yet initialised )
     pub new_page: bool,
-
-    ///
+    /// Line padding ( space between lines )
     pub line_pad: i16,
-    ///
+    /// Line margin
     pub margin_left: i16,
-    ///
+    /// Line margin ( right )
     pub margin_right: i16,
-    ///
+    /// Current top margin
     pub margin_top: i16,
-    ///
+    /// Current bottom margin
     pub margin_bottom: i16,
-    ///
+    /// Current page width, default is 400
     pub page_width: i16,
-    ///
+    /// Current page height, default is 600
     pub page_height: i16,
-    ///
+    /// Line length
     pub line_used: i16,
-    ///
+    /// Line items
     pub line: Vec<Item>,
-    ///
+    /// Largest font for current line
     pub max_font_size: i16,
-    ///
+    /// Default is zero, set to 1 to center output lines
     pub center: i16,
+    /// For fetching fonts and images
+    pub fetcher: Option<Box<dyn Fetcher>>,
 }
 
 impl Default for Writer {
@@ -72,6 +73,7 @@ impl Default for Writer {
             line: Vec::new(),
             max_font_size: 0,
             center: 0,
+            fetcher: None,
         };
         for _ in 0..4 {
             x.fonts.push(Box::<StandardFont>::default());
@@ -81,7 +83,6 @@ impl Default for Writer {
 }
 
 impl Writer {
-    ///
     fn init_page(&mut self) {
         self.p.width = self.page_width;
         self.p.height = self.page_height;
@@ -95,36 +96,28 @@ impl Writer {
         self.new_page = false;
     }
 
-    ///
+    /// Completes current page.
     pub fn save_page(&mut self) {
         let p = std::mem::take(&mut self.p);
         self.pages.push(p);
         self.new_page = true;
     }
 
-    ///
     fn init_font(&mut self, x: usize) {
         let f = &mut self.fonts[x];
         f.init(&mut self.b, HELVETICA[x]);
     }
 
-    ///
     fn width(&self, _c: char) -> u64 {
         // Ought to take some account of upper/lower case.
         // This is rather preliminary.
-        if (self.cur_font & 1) == 1 {
-            550
-        } else {
-            500
-        }
+        if (self.cur_font & 1) == 1 { 550 } else { 500 }
     }
 
-    ///
     fn line_len(&self) -> i16 {
         self.page_width - self.margin_left - self.margin_right
     }
 
-    ///
     fn wrap_text(&mut self, s: &str) {
         if self.new_page {
             self.init_page();
@@ -151,7 +144,7 @@ impl Writer {
             .push(Item::Text(s.to_string(), self.cur_font, self.font_size));
     }
 
-    ///
+    /// Outputs current line ( consisting of items ).
     pub fn output_line(&mut self) {
         if self.new_page {
             self.init_page();
@@ -185,7 +178,7 @@ impl Writer {
         self.max_font_size = 0;
     }
 
-    ///
+    /// Writes word-wrapped text if mode is Normal, adds text to title if mode is Title.
     pub fn text(&mut self, s: &str) {
         match self.mode {
             Mode::Normal => {
@@ -198,25 +191,26 @@ impl Writer {
         }
     }
 
-    ///
+    /// Adds a space to text.
     pub fn space(&mut self) {
         self.text(" ");
     }
 
-    ///
+    /// Sets sup
     pub fn set_sup(&mut self, sup: i16) {
         self.line.push(Item::Sup(sup));
         self.sup = sup;
     }
 
-    ///
-    pub fn finish(&mut self) {
+    /// Flushes output line, writes page footers, saves pages, sets title, returns finished enum as byte slice.
+    pub fn finish(&mut self) -> &[u8] {
         self.output_line();
         self.init_font(0);
         self.save_page();
         let n = self.pages.len();
         let mut pnum = 1;
         let font_size = 8;
+        #[allow(clippy::explicit_counter_loop)]
         for p in &mut self.pages {
             p.goto(self.margin_left, self.line_pad);
             p.text(
@@ -228,31 +222,27 @@ impl Writer {
             pnum += 1;
         }
         self.b.finish(&self.pages, self.title.as_bytes());
+        &self.b.b
     }
 }
 
-///
+/// Writing mode (for html)
 #[derive(Clone, Copy)]
 pub enum Mode {
-    ///
+    /// Normal
     Normal,
-    ///
+    /// Text output is suppressed
     Head,
-    ///
+    /// Text is appended to title
     Title,
 }
 
 /// Items that define a line of text.
 pub enum Item {
-    ///
+    /// Text, font index and font size
     Text(String, usize, i16),
-    ///
+    /// Sup value ( raise text above base line )
     Sup(i16),
-}
-
-/// Convert byte slice into string.
-fn _tos(s: &[u8]) -> String {
-    std::str::from_utf8(s).unwrap().to_string()
 }
 
 /// Convert byte slice into string.
@@ -448,4 +438,12 @@ fn html_inner(w: &mut Writer, p: &mut Parser, endtag: &[u8]) {
             }
         }
     }
+}
+
+/// Instances can fetch an image or font
+pub trait Fetcher {
+    /// Fetch image from URL
+    fn image(&mut self, w: &mut Writer, url: &[u8]) -> Image;
+    /// Fetch specified font
+    fn font(&mut self, w: &mut Writer, spec: &[u8]) -> Box<dyn Font>;
 }
