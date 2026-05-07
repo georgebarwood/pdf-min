@@ -41,21 +41,25 @@
 //!    // Read jpg from file
 //!    let file_bytes = std::fs::read("one.jpg").unwrap();
 //!
-//!    // Use jpeg_decoder::Decoder to get jpg info ( color space, width, height ).
+//!    // Use jpeg_decoder::Decoder to get jpg info ( color space, bits_per_component, width, height ).
 //!    let mut decoder = jpeg_decoder::Decoder::new(std::io::Cursor::new(&file_bytes));
 //!    decoder.read_info().unwrap();
 //!    let info = decoder.info().unwrap();
 //!
 //!    use jpeg_decoder::{PixelFormat};
 //!    
-//!    let color_space: &[u8] = match info.pixel_format {
-//!        PixelFormat::L8 => b"/DeviceGray",
+//!    let color_space: &[u8] = match info.pixel_format { 
 //!        PixelFormat::RGB24 => b"/DeviceRGB",
 //!        PixelFormat::CMYK32 => b"/DeviceCMYK",
-//!        _ => panic!()
+//!        PixelFormat::L8 | PixelFormat::L16 => b"/DeviceGray",
 //!    };
 //!
-//!    // Use img_parts::jpeg::Jpeg to make DCT compressed data.
+//!    let bits_per_component = match info.pixel_format { 
+//!        PixelFormat::L16 => 16,
+//!        _ => 8
+//!    };
+//!
+//!    // Use img_parts::jpeg::Jpeg to make DCT (Discrete Cosine Transform) compressed data.
 //!    let cdata = 
 //!    {
 //!        let mut cdata = Vec::new();
@@ -63,16 +67,19 @@
 //!        jpeg.encoder().write_to(&mut cdata).unwrap();
 //!        cdata
 //!    };
+//!
+//!    // Make the ImageSpec.
 //!    use pdf_min::{Px, image::{ImageSpec, Image}};
 //!    let ims = ImageSpec {
 //!        data: &cdata,
 //!        width: info.width as Px,
 //!        height: info.height as Px,
 //!        color_space,
-//!        bits_per_component: 8,
+//!        bits_per_component,
 //!        other: b"/Filter/DCT",
 //!    };
 //!    
+//!    // Make the Image from the ImageSpec.
 //!    let im = Image::new(&ims, &mut doc.b);
 //!
 //!    // Draw the image on the current page.
@@ -80,10 +87,8 @@
 //!
 //!    // Save the pdf as a file.
 //!    let bytes = doc.finish();
-//!    use std::fs::File;
-//!    use std::io::prelude::*;
-//!
-//!    let mut file = File::create("jpg_image_test.pdf").unwrap();
+//!    let mut file = std::fs::File::create("jpg_image_test.pdf").unwrap();
+//!    use std::io::Write;
 //!    file.write_all(bytes).unwrap();
 //! ```
 
