@@ -108,12 +108,25 @@ impl Writer {
         f.init(&mut self.b, HELVETICA[x]);
     }
 
-    fn width(&self, _c: char) -> MPx {
+    fn width(&self, c: char) -> MPx {
         // This is rather preliminary.
         // Ought to get exact char width from self.cur_font.
         // In mean time, could allow more for upper case and wide chars like 'W'
-        let w : MPx = if (self.cur_font & 1) == 1 { 550 } else { 500 }; // Allow more for bold fonts.
-        w * (self.font_size as MPx)
+        
+        // let w : MPx = if (self.cur_font & 1) == 1 { 550 } else { 500 }; // Allow more for bold fonts.
+
+        let c = c as usize;
+        
+        let w = if c >= 32 && c < 150
+        {
+            crate::metric::HELVETICA[ self.cur_font ][ (c - 32) as usize ]
+        }
+        else
+        {
+            if (self.cur_font & 1) == 1 { 550 } else { 500 }
+        };
+        
+        (w as MPx )* (self.font_size as MPx)
     }
 
     fn line_len(&self) -> MPx {
@@ -157,7 +170,6 @@ impl Writer {
         self.wrap_init();
             
         let mut width = ( width as MPx ) * 1000; // Convert width to MPx
-        width += 20000; /* Padding of 10 px times 2 */
         
         if self.line_used + width > self.line_len() {
             self.output_line();
@@ -198,7 +210,7 @@ impl Writer {
                 }
                 Item::Img(im, width, scale) => {
                     self.p.flush_text();
-                    let x : f32 = (self.p.x as f32) + ( cx as f32 / 1000.0 ) + 10.0;
+                    let x : f32 = (self.p.x as f32) + ( cx as f32 / 1000.0 );
                     let y = self.p.y as f32;
                     im.draw( &mut self.p, x, y, *scale );
                     cx += width;

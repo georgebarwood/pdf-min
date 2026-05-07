@@ -5,8 +5,10 @@ use format_bytes::write_bytes as wb;
 pub trait Font {
     /// Get the PDF object number.
     fn obj(&self) -> usize;
+    
     /// Encode string.
     fn encode(&self, s: &str, to: &mut Vec<u8>);
+    
     /// Initialise the font by writing defition to w.
     fn init(&mut self, w: &mut BasicPdfWriter, name: &str);
 }

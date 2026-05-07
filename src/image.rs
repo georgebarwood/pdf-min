@@ -22,7 +22,7 @@
 //!      w.fetcher = Some(Box::new(MyFetcher));
 //!   
 //!      // Draw text with image
-//!      html( &mut w, b"<p>Image <img width=32 src=myimg> Text after image" );
+//!      html( &mut w, b"<p><b>Bold Text Before Image</b> <img width=32 src=myimg> Text after image" );
 //!      let bytes = w.finish();
 //!   
 //!      use std::fs::File;

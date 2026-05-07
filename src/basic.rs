@@ -127,9 +127,10 @@ impl BasicPdfWriter {
             self.b.extend_from_slice(data);
         } else {
             let cb: Vec<u8> = self.comp.deflate(data);
+            // Fl is abbreviation for FlateDecode
             let _ = wb!(
                 &mut self.b,
-                b"<</Filter/FlateDecode/Length {}>>stream\n",
+                b"<</Filter/Fl/Length {}>>stream\n",
                 cb.len()
             );
             self.b.extend_from_slice(&cb);

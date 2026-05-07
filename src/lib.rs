@@ -52,6 +52,8 @@ pub mod page;
 pub mod writer;
 /// Conversion from HTML to PDF.
 pub mod html;
+/// Character sizes for standard fonts.
+pub mod metric;
 
 pub use writer::Writer;
 pub use html::html;
