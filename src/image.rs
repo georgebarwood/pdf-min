@@ -6,22 +6,23 @@
 //!      impl Fetcher for MyFetcher {
 //!         fn image(&mut self, w: &mut Writer, _name: &str) -> Image {         
 //!             let mut data = Vec::new();
-//!             for i in 0..300 {
-//!                 data.push( (i*2) as u8 );  // Red
-//!                 data.push( ( (i*2) + 120 ) as u8 ); // Green
-//!                 data.push( ( (i*2) + 240 ) as u8 ); // Blue
+//!             for i in 0..3 * 16 * 16 {
+//!                 data.push( i as u8 );  // Red
+//!                 data.push( (i + 85 ) as u8 ); // Green
+//!                 data.push( (i + 170 ) as u8 ); // Blue
 //!             }
-//!             let ims = ImageSpec{ data: &data, width:10, height:10, 
+//!             let ims = ImageSpec{ data: &data, width:16, height:16, 
 //!                 bits_per_component:8, color_space: b"/DeviceRGB", other: b"" };
 //!             Image::new( &ims, &mut w.b )
 //!         }
 //!      }
 //!      let mut w = Writer::default();
 //!      w.b.nocomp = true;
+//!      w.font_size = 20;
 //!      w.fetcher = Some(Box::new(MyFetcher));
 //!   
-//!      // Draw some text with image.
-//!      html( &mut w, b"<p>An image<img width=16 src=myimg>Text after image" );
+//!      // Draw text with image
+//!      html( &mut w, b"<p>Image <img width=32 src=myimg> Text after image" );
 //!      let bytes = w.finish();
 //!   
 //!      use std::fs::File;

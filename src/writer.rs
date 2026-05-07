@@ -120,29 +120,51 @@ impl Writer {
         ( ( self.page_width - self.margin_left - self.margin_right ) as MPx ) * 1000
     }
 
-    fn wrap_text(&mut self, s: &str) {
+    fn wrap_init(&mut self)
+    {
         if self.new_page {
             self.init_page();
         }
+    }
 
-        let mut w = 0;
+    fn wrap_text(&mut self, s: &str) {
+        self.wrap_init();
+
+        let mut width : MPx = 0;
         for c in s.chars() {
-            w += self.width(c);
+            width += self.width(c); // May depend on current font.
         }
 
-        if self.line_used + w > self.line_len() {
+        if self.line_used + width > self.line_len() {
             self.output_line();
             if s == " " {
                 return;
             }
         }
-        self.line_used += w;
+        self.line_used += width;
+
         self.init_font(self.cur_font);
         if self.font_size > self.max_font_size {
             self.max_font_size = self.font_size;
         }
+        
         self.line
-            .push(Item::Text(s.to_string(), self.cur_font, self.font_size, w));
+            .push(Item::Text(s.to_string(), self.cur_font, self.font_size, width));
+    }
+
+    fn wrap_image(&mut self, im: Image, width: Px, scale: f32)
+    {
+        self.wrap_init();
+            
+        let mut width = ( width as MPx ) * 1000; // Convert width to MPx
+        width += 20000; /* Padding of 10 px times 2 */
+        
+        if self.line_used + width > self.line_len() {
+            self.output_line();
+        }
+        
+        self.line_used += width;
+        self.line.push(Item::Img(im, width, scale));
     }
 
     /// Outputs current line ( consisting of items ).
@@ -176,15 +198,11 @@ impl Writer {
                 }
                 Item::Img(im, width, scale) => {
                     self.p.flush_text();
-                    cx += 5000; // 5 pixels left padding
-                    let x : f32 = (self.p.x as f32) + ( ( cx / 1000 ) as f32 );
+                    let x : f32 = (self.p.x as f32) + ( cx as f32 / 1000.0 ) + 10.0;
                     let y = self.p.y as f32;
                     im.draw( &mut self.p, x, y, *scale );
-                    cx += 5000; // 5 pixels right padding
-
-                    let width = (*width as MPx) * 1000;
                     cx += width;
-                    self.p.space(width + 10000);
+                    self.p.space(*width);
                 }
             }
         }
@@ -207,15 +225,24 @@ impl Writer {
     }
 
     /// Write image
-    pub fn image(&mut self, src: &str, _width:Option<Px>, _height: Option<Px>)
+    pub fn image(&mut self, src: &str, awidth:Option<Px>, aheight: Option<Px>)
     {
        let mut bf = std::mem::take(&mut self.fetcher);
        if let Some(f) = &mut bf
        {
            let im = f.image( self, src );
-           let width = im.width;
-           self.line.push(Item::Img(im, width, 1.0));
-           // Maybe need to adjust self.line_used here.
+           let mut width : Px = im.width;
+           let mut scale : f32 = 1.0;
+           if let Some(awidth) = awidth
+           {
+               scale = awidth as f32 / width as f32;
+               width = awidth;
+           } else if let Some(aheight) = aheight
+           {
+               scale = aheight as f32 / im.height as f32;
+               width = ( width as f32 * scale ) as Px;
+           }
+           self.wrap_image(im, width, scale);
        } else {
            self.text("error : no fetcher in pdf-min::Writer");
        }
@@ -275,7 +302,7 @@ pub enum Item {
     /// Sup value ( raise text above base line )
     Sup(Px),
     /// Image, image, width, scale
-    Img(Image, Px, f32)
+    Img(Image, MPx, f32)
 }
 
 /// Instances can fetch an image or font
