@@ -31,6 +31,62 @@
 //!      let mut file = File::create("image_test.pdf").unwrap();
 //!      file.write_all(bytes).unwrap();
 //! ```
+//!
+//!# JPG Test example
+//! ```
+//!    // Setup the PDF Writer
+//!    let mut doc = pdf_min::Writer::default();
+//!    doc.b.nocomp = true;
+//!
+//!    // Read jpg from file
+//!    let file_bytes = std::fs::read("one.jpg").unwrap();
+//!
+//!    // Use jpeg_decoder::Decoder to get jpg info ( color space, width, height ).
+//!    let mut decoder = jpeg_decoder::Decoder::new(std::io::Cursor::new(&file_bytes));
+//!    decoder.read_info().unwrap();
+//!    let info = decoder.info().unwrap();
+//!
+//!    use jpeg_decoder::{PixelFormat};
+//!    
+//!    let color_space: &[u8] = match info.pixel_format {
+//!        PixelFormat::L8 => b"/DeviceGray",
+//!        PixelFormat::RGB24 => b"/DeviceRGB",
+//!        PixelFormat::CMYK32 => b"/DeviceCMYK",
+//!        _ => panic!()
+//!    };
+//!
+//!    // Use img_parts::jpeg::Jpeg to make DCT compressed data.
+//!    let cdata = 
+//!    {
+//!        let mut cdata = Vec::new();
+//!        let jpeg = img_parts::jpeg::Jpeg::from_bytes(file_bytes.into()).unwrap();
+//!        jpeg.encoder().write_to(&mut cdata).unwrap();
+//!        cdata
+//!    };
+//!    use pdf_min::{Px, image::{ImageSpec, Image}};
+//!    let ims = ImageSpec {
+//!        data: &cdata,
+//!        width: info.width as Px,
+//!        height: info.height as Px,
+//!        color_space,
+//!        bits_per_component: 8,
+//!        other: b"/Filter/DCT",
+//!    };
+//!    
+//!    let im = Image::new(&ims, &mut doc.b);
+//!
+//!    // Draw the image on the current page.
+//!    im.draw(&mut doc.p, 20.0, 40.0, 0.20);
+//!
+//!    // Save the pdf as a file.
+//!    let bytes = doc.finish();
+//!    use std::fs::File;
+//!    use std::io::prelude::*;
+//!
+//!    let mut file = File::create("jpg_image_test.pdf").unwrap();
+//!    file.write_all(bytes).unwrap();
+//! ```
+
 
 use crate::*;
 use crate::BasicPdfWriter;
