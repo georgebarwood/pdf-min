@@ -1,3 +1,4 @@
+use crate::*;
 use crate::font::Font;
 use format_bytes::write_bytes as wb;
 use std::collections::BTreeSet;
@@ -6,10 +7,10 @@ use std::collections::BTreeSet;
 #[derive(Default)]
 pub struct Page {
     /// Page width.
-    pub width: i16,
+    pub width: Px,
 
     /// Page height.
-    pub height: i16,
+    pub height: Px,
 
     /// Output buffer.
     pub os: Vec<u8>,
@@ -21,25 +22,25 @@ pub struct Page {
     pub text: Vec<u8>,
 
     /// Current line position ( from left of page ).
-    pub x: i16,
+    pub x: Px,
 
     /// Current line position ( from bottom of page ).
-    pub y: i16,
+    pub y: Px,
 
     /// Current font.
     font_obj: usize,
 
     /// Current font size.
-    font_size: i16,
+    font_size: Px,
 
     /// Current super
-    pub sup: i16,
+    pub sup: Px,
 
     /// For checking whether font has changed.
     last_font_obj: usize,
 
     /// For checking whether font size has changed.
-    last_font_size: i16,
+    last_font_size: Px,
 
     /// Set of font obj numbers used by page.
     pub fonts: BTreeSet<usize>,
@@ -50,12 +51,12 @@ pub struct Page {
 
 impl Page {
     /// Start a new line ( absolute position ).
-    pub fn goto(&mut self, x: i16, y: i16) {
+    pub fn goto(&mut self, x: Px, y: Px) {
         self.td(x - self.x, y - self.y);
     }
 
     /// Start a new line ( relative to previous line ).
-    pub fn td(&mut self, x: i16, y: i16) {
+    pub fn td(&mut self, x: Px, y: Px) {
         self.flush_text();
         let _ = wb!(&mut self.ts, b"\n{} {} Td ", x, y);
         self.x += x;
@@ -63,7 +64,7 @@ impl Page {
     }
 
     /// Append text ( encoded with font ).
-    pub fn text(&mut self, font: &dyn Font, size: i16, s: &str) {
+    pub fn text(&mut self, font: &dyn Font, size: Px, s: &str) {
         if size != self.font_size || font.obj() != self.font_obj {
             self.flush_text();
             self.font_obj = font.obj();
@@ -72,8 +73,15 @@ impl Page {
         font.encode(s, &mut self.text);
     }
 
+    /// Leave some space. Unit is 1/1000 pixel.
+    pub fn space(&mut self, amount: MPx)
+    {
+        let amount = amount / (self.font_size as MPx);
+        let _ = wb!(&mut self.ts, b"[{}] TJ ", -amount);
+    }
+
     /// Flush text using tj.
-    fn flush_text(&mut self) {
+    pub fn flush_text(&mut self) {
         if self.text.is_empty() {
             return;
         }
@@ -137,7 +145,7 @@ impl Page {
     }
 
     /// Set level of text on line.
-    pub fn set_sup(&mut self, sup: i16) {
+    pub fn set_sup(&mut self, sup: Px) {
         if self.sup != sup {
             self.flush_text();
             self.sup = sup;

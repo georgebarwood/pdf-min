@@ -1,9 +1,8 @@
 //! This crate implements minimal conversion from HTML to PDF.
 //!
 //! ToDo:
-//! Proper parsing of tag attibutes.
-//! Font sizing, html tables.
-//! Img tag in html, with support for jpegs ( using new image module ).
+//! Maybe html tables.
+//! Proper calculation of char display widths ( for text wrapping, image positioning )
 
 //!# Test example
 //!
@@ -51,10 +50,19 @@ pub mod image;
 pub mod page;
 /// High level PDF writer.
 pub mod writer;
+/// Conversion from HTML to PDF.
+pub mod html;
 
-pub use writer::{Writer, html};
+pub use writer::Writer;
+pub use html::html;
 
 use basic::*;
 use font::*;
 use image::*;
 use page::*;
+use writer::*;
+
+/// Page unit
+pub type Px = i32;
+/// 1/1000 of a page unit (for text width calculations)
+pub type MPx = i64; 

@@ -10,10 +10,10 @@ pub struct Writer {
     pub fonts: Vec<Box<dyn Font>>,
     /// Index into fonts
     pub cur_font: usize,
-    /// Current font size
-    pub font_size: i16,
+    /// Current font size, default is 10
+    pub font_size: Px,
     /// Current sup ( raises text up off line ), use set_sup to adjust it
-    pub sup: i16,
+    pub sup: Px,
     /// Writing mode
     pub mode: Mode,
     /// PDF title
@@ -22,28 +22,28 @@ pub struct Writer {
     pub pages: Vec<Page>,
     /// Page is new ( not yet initialised )
     pub new_page: bool,
-    /// Line padding ( space between lines )
-    pub line_pad: i16,
-    /// Line margin
-    pub margin_left: i16,
-    /// Line margin ( right )
-    pub margin_right: i16,
-    /// Current top margin
-    pub margin_top: i16,
-    /// Current bottom margin
-    pub margin_bottom: i16,
-    /// Current page width, default is 400
-    pub page_width: i16,
-    /// Current page height, default is 600
-    pub page_height: i16,
-    /// Line length
-    pub line_used: i16,
+    /// Line padding ( space between lines ) default is 4
+    pub line_pad: Px,
+    /// Line margin ( left ), default is 20
+    pub margin_left: Px,
+    /// Line margin ( right ), default is 20
+    pub margin_right: Px,
+    /// Top margin, default is 20
+    pub margin_top: Px,
+    /// Bottom margin, default is 20
+    pub margin_bottom: Px,
+    /// Page width, default is 600
+    pub page_width: Px,
+    /// Page height, default is 800
+    pub page_height: Px,
+    /// Line used ( controls word-wrapping )
+    pub line_used: MPx,
     /// Line items
     pub line: Vec<Item>,
     /// Largest font for current line
-    pub max_font_size: i16,
+    pub max_font_size: Px,
     /// Default is zero, set to 1 to center output lines
-    pub center: i16,
+    pub center: bool,
     /// For fetching fonts and images
     pub fetcher: Option<Box<dyn Fetcher>>,
 }
@@ -62,8 +62,8 @@ impl Default for Writer {
             pages: Vec::new(),
             new_page: true,
 
-            page_width: 400,
-            page_height: 600,
+            page_width: 600,
+            page_height: 800,
             line_pad: 4,
             margin_left: 20,
             margin_right: 20,
@@ -72,7 +72,7 @@ impl Default for Writer {
             line_used: 0,
             line: Vec::new(),
             max_font_size: 0,
-            center: 0,
+            center: false,
             fetcher: None,
         };
         for _ in 0..4 {
@@ -108,14 +108,16 @@ impl Writer {
         f.init(&mut self.b, HELVETICA[x]);
     }
 
-    fn width(&self, _c: char) -> u64 {
-        // Ought to take some account of upper/lower case.
+    fn width(&self, _c: char) -> MPx {
         // This is rather preliminary.
-        if (self.cur_font & 1) == 1 { 550 } else { 500 }
+        // Ought to get exact char width from self.cur_font.
+        // In mean time, could allow more for upper case and wide chars like 'W'
+        let w : MPx = if (self.cur_font & 1) == 1 { 550 } else { 500 }; // Allow more for bold fonts.
+        w * (self.font_size as MPx)
     }
 
-    fn line_len(&self) -> i16 {
-        self.page_width - self.margin_left - self.margin_right
+    fn line_len(&self) -> MPx {
+        ( ( self.page_width - self.margin_left - self.margin_right ) as MPx ) * 1000
     }
 
     fn wrap_text(&mut self, s: &str) {
@@ -127,7 +129,6 @@ impl Writer {
         for c in s.chars() {
             w += self.width(c);
         }
-        let w = (w * self.font_size as u64 / 1000) as i16;
 
         if self.line_used + w > self.line_len() {
             self.output_line();
@@ -141,7 +142,7 @@ impl Writer {
             self.max_font_size = self.font_size;
         }
         self.line
-            .push(Item::Text(s.to_string(), self.cur_font, self.font_size));
+            .push(Item::Text(s.to_string(), self.cur_font, self.font_size, w));
     }
 
     /// Outputs current line ( consisting of items ).
@@ -149,27 +150,41 @@ impl Writer {
         if self.new_page {
             self.init_page();
         } else {
-            let cx = if self.center == 1 {
-                (self.line_len() - self.line_used) / 2
+            let cx = if self.center {
+                ( (self.line_len() - self.line_used) / 2000 ) as Px
             } else {
                 0
             };
             let h = self.max_font_size + self.line_pad;
             if self.p.y >= h + self.margin_bottom {
-                self.p.td(self.margin_left + cx - self.p.x, -h);
+                self.p.td(self.margin_left + cx  - self.p.x, -h);
             } else {
                 self.save_page();
                 self.init_page();
             }
         }
+        let mut cx : MPx = 0; // Unit is 1/1000 pixel
         for item in &self.line {
             match item {
-                Item::Text(s, f, x) => {
+                Item::Text(s, f, x, w) => {
                     let fp = &*self.fonts[*f];
                     self.p.text(fp, *x, s);
+                    cx += w;
                 }
                 Item::Sup(x) => {
                     self.p.set_sup(*x);
+                }
+                Item::Img(im, width, scale) => {
+                    self.p.flush_text();
+                    cx += 5000; // 5 pixels left padding
+                    let x : f32 = (self.p.x as f32) + ( ( cx / 1000 ) as f32 );
+                    let y = self.p.y as f32;
+                    im.draw( &mut self.p, x, y, *scale );
+                    cx += 5000; // 5 pixels right padding
+
+                    let width = (*width as MPx) * 1000;
+                    cx += width;
+                    self.p.space(width + 10000);
                 }
             }
         }
@@ -191,18 +206,34 @@ impl Writer {
         }
     }
 
+    /// Write image
+    pub fn image(&mut self, src: &str, _width:Option<Px>, _height: Option<Px>)
+    {
+       let mut bf = std::mem::take(&mut self.fetcher);
+       if let Some(f) = &mut bf
+       {
+           let im = f.image( self, src );
+           let width = im.width;
+           self.line.push(Item::Img(im, width, 1.0));
+           // Maybe need to adjust self.line_used here.
+       } else {
+           self.text("error : no fetcher in pdf-min::Writer");
+       }
+       self.fetcher = bf;
+    }
+
     /// Adds a space to text.
     pub fn space(&mut self) {
         self.text(" ");
     }
 
     /// Sets sup
-    pub fn set_sup(&mut self, sup: i16) {
+    pub fn set_sup(&mut self, sup: Px) {
         self.line.push(Item::Sup(sup));
         self.sup = sup;
     }
 
-    /// Flushes output line, writes page footers, saves pages, sets title, returns finished enum as byte slice.
+    /// Flushes output line, writes page footers, saves pages, sets title, returns finished PDF as byte slice.
     pub fn finish(&mut self) -> &[u8] {
         self.output_line();
         self.init_font(0);
@@ -239,211 +270,18 @@ pub enum Mode {
 
 /// Items that define a line of text.
 pub enum Item {
-    /// Text, font index and font size
-    Text(String, usize, i16),
+    /// Text, font index, font size, width
+    Text(String, usize, Px, MPx),
     /// Sup value ( raise text above base line )
-    Sup(i16),
-}
-
-/// Convert byte slice into string.
-fn tosl(s: &[u8]) -> &str {
-    std::str::from_utf8(s).unwrap()
-}
-
-/// Convert source html to PDF using Writer w.
-pub fn html(w: &mut Writer, source: &[u8]) {
-    let mut p = Parser::new(source);
-    p.read_token();
-    html_inner(w, &mut p, b"");
-}
-
-#[derive(Debug)]
-enum Token {
-    Text,
-    Tag,
-    WhiteSpace,
-    Eof,
-}
-
-struct Parser<'a> {
-    source: &'a [u8],
-    position: usize,
-    token_start: usize,
-    token_end: usize,
-    end_tag: bool,
-    token: Token,
-}
-
-impl<'a> Parser<'a> {
-    fn new(source: &'a [u8]) -> Self {
-        Self {
-            source,
-            position: 0,
-            token_start: 0,
-            token_end: 0,
-            end_tag: false,
-            token: Token::Eof,
-        }
-    }
-
-    fn tvalue(&self) -> &'a [u8] {
-        &self.source[self.token_start..self.token_end]
-    }
-
-    fn next(&mut self) -> u8 {
-        if self.position == self.source.len() {
-            0
-        } else {
-            let c = self.source[self.position];
-            self.position += 1;
-            c
-        }
-    }
-
-    fn read_token(&mut self) {
-        let c = self.next();
-        if c == 0 {
-            self.token = Token::Eof;
-        } else if c == b' ' || c == b'\n' {
-            self.token = Token::WhiteSpace;
-            loop {
-                let c = self.next();
-                if c != b' ' || c != b'\n' {
-                    if c != 0 {
-                        self.position -= 1;
-                    }
-                    break;
-                }
-            }
-        } else if c == b'<' {
-            // e.g. <h1 name=x> or </h1>s
-            // Find tag name, then read to end of tag.
-
-            self.token = Token::Tag;
-            self.token_start = self.position;
-            self.end_tag = false;
-            let mut c = self.next();
-            if c == b'/' {
-                self.end_tag = true;
-                self.token_start = self.position;
-                c = self.next();
-            }
-            let mut got_end = false;
-            loop {
-                if c == b' ' {
-                    if !got_end {
-                        self.token_end = self.position;
-                        got_end = true;
-                    }
-                } else if c == b'>' {
-                    if !got_end {
-                        self.token_end = self.position - 1;
-                        break;
-                    }
-                } else if c == 0 {
-                    self.token = Token::Eof;
-                    break;
-                }
-                c = self.next();
-            }
-        } else {
-            self.token = Token::Text;
-            self.token_start = self.position - 1;
-            let mut c = self.next();
-            loop {
-                if c == b'<' || c == b' ' || c == b'\n' {
-                    self.position -= 1;
-                    self.token_end = self.position;
-                    break;
-                } else if c == 0 {
-                    self.token_end = self.position;
-                    break;
-                }
-                c = self.next();
-            }
-        }
-    }
-}
-
-fn html_inner(w: &mut Writer, p: &mut Parser, endtag: &[u8]) {
-    loop {
-        match p.token {
-            Token::Eof => {
-                return;
-            }
-            Token::WhiteSpace => {
-                w.space();
-                p.read_token();
-            }
-            Token::Text => {
-                let s = tosl(p.tvalue());
-                let s = &html_escape::decode_html_entities(s);
-                w.text(s);
-                p.read_token();
-            }
-            Token::Tag => {
-                let tag = p.tvalue();
-                if p.end_tag {
-                    if tag == endtag {
-                        p.read_token();
-                    }
-                    return;
-                } else if tag == b"p" && tag == endtag {
-                    return;
-                }
-                p.read_token();
-                if tag == b"br" || tag == b"br/" {
-                    w.output_line();
-                } else {
-                    let save_mode = w.mode;
-                    let save_font = w.cur_font;
-                    let save_font_size = w.font_size;
-                    let mut save: i16 = 0;
-                    match tag {
-                        b"p" => w.output_line(),
-                        b"h1" => {
-                            w.font_size = 14;
-                            w.output_line();
-                            save = w.center;
-                            w.center = 1;
-                        }
-                        b"b" => w.cur_font |= 1,
-                        b"i" => w.cur_font |= 2,
-                        b"title" => w.mode = Mode::Title,
-                        b"html" | b"head" => w.mode = Mode::Head,
-                        b"body" => w.mode = Mode::Normal,
-                        b"sup" => {
-                            save = w.sup;
-                            w.set_sup(w.font_size / 2);
-                        }
-                        b"sub" => {
-                            save = w.sup;
-                            w.set_sup(-w.font_size / 2);
-                        }
-                        _ => {}
-                    }
-                    html_inner(w, p, tag);
-                    w.mode = save_mode;
-                    w.font_size = save_font_size;
-                    w.cur_font = save_font;
-                    match tag {
-                        b"sup" | b"sub" => w.set_sup(save),
-                        b"h1" => {
-                            w.output_line();
-                            w.center = save;
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        }
-    }
+    Sup(Px),
+    /// Image, image, width, scale
+    Img(Image, Px, f32)
 }
 
 /// Instances can fetch an image or font
 pub trait Fetcher {
-    /// Fetch image from URL
-    fn image(&mut self, w: &mut Writer, url: &[u8]) -> Image;
+    /// Fetch named image
+    fn image(&mut self, _w: &mut Writer, _name: &str) -> Image { todo!() }
     /// Fetch specified font
-    fn font(&mut self, w: &mut Writer, spec: &[u8]) -> Box<dyn Font>;
+    fn font(&mut self, _w: &mut Writer, _name: &str) -> Box<dyn Font>{ todo!() }
 }
