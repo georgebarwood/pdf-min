@@ -2,8 +2,7 @@
 //!
 //! ToDo:
 //! Maybe html tables.
-//! Char width should be method of font trait.
-
+//!
 //!# Test example
 //!
 //! ```
@@ -23,7 +22,7 @@
 //!<p>{}
 //!</body>
 //!</html>
-//!","Some text to <b>cause</b> Line <i>and</i> Page <b><i>wrapping</i></b>. ".repeat(200));
+//!","Some text £100 €200 to <b>cause</b> Line <i>and</i> Page <b><i>wrapping</i></b>. ".repeat(200));
 //!    let mut w = Writer::default();
 //!    w.b.nocomp = true; // w.fonts = font::times();
 //!    w.line_pad = 8; // Other Writer default values could be adjusted here.
