@@ -23,7 +23,7 @@ struct Parser<'a> {
     token_end: usize,
     end_tag: bool,
     token: Token,
-    attr: BTreeMap< &'a [u8], &'a [u8] >,
+    attr: BTreeMap<&'a [u8], &'a [u8]>,
 }
 
 impl<'a> Parser<'a> {
@@ -44,14 +44,16 @@ impl<'a> Parser<'a> {
     }
 
     /// Get attribute value,
-    fn avalue(&self, name: &'a[u8] ) -> Option<&&'a[u8]> {
+    fn avalue(&self, name: &'a [u8]) -> Option<&&'a [u8]> {
         self.attr.get(name)
     }
 
     /// Get integer attribute, return None on not present or error.
-    fn aint(&self, name: &'a[u8] ) -> Option<Px> {
-        if let Some(s) = self.avalue(name) && let Ok(x) = tos(s).parse::<Px>() {
-            return Some(x) 
+    fn aint(&self, name: &'a [u8]) -> Option<Px> {
+        if let Some(s) = self.avalue(name)
+            && let Ok(x) = tos(s).parse::<Px>()
+        {
+            return Some(x);
         }
         None
     }
@@ -66,43 +68,57 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn next_non_space(&mut self) -> u8
-    {
-        loop
-        {
-           let c = self.next();
-           if c != b' ' { return c; }
+    fn next_non_space(&mut self) -> u8 {
+        loop {
+            let c = self.next();
+            if c != b' ' {
+                return c;
+            }
         }
-    }   
+    }
 
-    fn read_tag_attributes(&mut self)
-    {
-       // Example: width = 15 alt = "something" src = "something" >
-       loop
-       {
-           let mut c = self.next_non_space();
-           let attr_name_start = self.position-1;
-           while c != b'=' && c != b' ' && c != b'>' && c != 0 {
-              c = self.next();
-           }
-           if c == b'>' { return; }
-           let attr_name = &self.source[attr_name_start..self.position-1];
-           if c == b' ' { c = self.next_non_space(); }
-           if c != b'=' { return; }
-           c = self.next_non_space();
-           let start = self.position - 1;
-           let attr = if c == b'"' { // Read quoted attribute
-               c = self.next();
-               while c != b'"' && c != 0 { c = self.next(); }
-               if c != b'"' { return; } 
-               &self.source[start+1..self.position-1]
-           } else { // Read unquoted attribute
-               while c != b' ' && c != b'>' && c != 0 { c = self.next(); }
-               &self.source[start..self.position-1] 
-           };
-           self.attr.insert(attr_name, attr);
-           if c == b'>' { return; }
-       }
+    fn read_tag_attributes(&mut self) {
+        // Example: width = 15 alt = "something" src = "something" >
+        loop {
+            let mut c = self.next_non_space();
+            let attr_name_start = self.position - 1;
+            while c != b'=' && c != b' ' && c != b'>' && c != 0 {
+                c = self.next();
+            }
+            if c == b'>' {
+                return;
+            }
+            let attr_name = &self.source[attr_name_start..self.position - 1];
+            if c == b' ' {
+                c = self.next_non_space();
+            }
+            if c != b'=' {
+                return;
+            }
+            c = self.next_non_space();
+            let start = self.position - 1;
+            let attr = if c == b'"' {
+                // Read quoted attribute
+                c = self.next();
+                while c != b'"' && c != 0 {
+                    c = self.next();
+                }
+                if c != b'"' {
+                    return;
+                }
+                &self.source[start + 1..self.position - 1]
+            } else {
+                // Read unquoted attribute
+                while c != b' ' && c != b'>' && c != 0 {
+                    c = self.next();
+                }
+                &self.source[start..self.position - 1]
+            };
+            self.attr.insert(attr_name, attr);
+            if c == b'>' {
+                return;
+            }
+        }
     }
 
     fn read_token(&mut self) {
@@ -131,7 +147,8 @@ impl<'a> Parser<'a> {
                 self.token_start = self.position;
                 c = self.next();
             }
-            loop { // To find end of tag name
+            loop {
+                // To find end of tag name
                 if c == b' ' {
                     self.token_end = self.position - 1;
                     self.read_tag_attributes();
@@ -140,7 +157,7 @@ impl<'a> Parser<'a> {
                     self.token_end = self.position - 1;
                     break; // No attributes to parse
                 } else if c == 0 {
-                    self.token =  Token::Eof; // Error
+                    self.token = Token::Eof; // Error
                     return;
                 } else {
                     c = self.next();
@@ -195,11 +212,10 @@ fn html_inner(w: &mut Writer, p: &mut Parser, endtag: &[u8]) {
                 if tag == b"br" || tag == b"br/" {
                     w.output_line();
                 } else if tag == b"img" {
-                    if let Some(src) = p.avalue( b"src" )
-                    {
-                        let width = p.aint( b"width" );
-                        let height = p.aint( b"height" );
-                        w.image( tos(src), width, height );
+                    if let Some(src) = p.avalue(b"src") {
+                        let width = p.aint(b"width");
+                        let height = p.aint(b"height");
+                        w.image(tos(src), width, height);
                     }
                 } else {
                     let save_mode = w.mode;

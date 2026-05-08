@@ -2,7 +2,7 @@
 //!
 //! ToDo:
 //! Maybe html tables.
-//! Proper calculation of char display widths ( for text wrapping, image positioning )
+//! Char width should be method of font trait.
 
 //!# Test example
 //!
@@ -23,9 +23,9 @@
 //!<p>{}
 //!</body>
 //!</html>
-//!","Some words to cause Line and Page wrapping ".repeat(200));
+//!","Some text to <b>cause</b> Line <i>and</i> Page <b><i>wrapping</i></b>. ".repeat(200));
 //!    let mut w = Writer::default();
-//!    w.b.nocomp = true;
+//!    w.b.nocomp = true; // w.fonts = font::times();
 //!    w.line_pad = 8; // Other Writer default values could be adjusted here.
 //!    html(&mut w, source.as_bytes());
 //!    let bytes = w.finish();
@@ -44,19 +44,19 @@
 pub mod basic;
 /// PDF fonts.
 pub mod font;
+/// Conversion from HTML to PDF.
+pub mod html;
 /// PDF images.
 pub mod image;
+/// Character sizes for standard fonts.
+pub mod metric;
 /// PDF page.
 pub mod page;
 /// High level PDF writer.
 pub mod writer;
-/// Conversion from HTML to PDF.
-pub mod html;
-/// Character sizes for standard fonts.
-pub mod metric;
 
-pub use writer::Writer;
 pub use html::html;
+pub use writer::Writer;
 
 use basic::*;
 use font::*;
@@ -67,4 +67,4 @@ use writer::*;
 /// Page unit
 pub type Px = i32;
 /// 1/1000 of a page unit (for text width calculations)
-pub type MPx = i64; 
+pub type MPx = i64;

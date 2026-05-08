@@ -11,7 +11,7 @@
 //!                 data.push( (i + 85 ) as u8 ); // Green
 //!                 data.push( (i + 170 ) as u8 ); // Blue
 //!             }
-//!             let ims = ImageSpec{ data: &data, width:16, height:16, 
+//!             let ims = ImageSpec{ data: &data, width:16, height:16,
 //!                 bits_per_component:8, color_space: b"/DeviceRGB", other: b"" };
 //!             Image::new( &ims, &mut w.b )
 //!         }
@@ -48,19 +48,19 @@
 //!
 //!    use jpeg_decoder::{PixelFormat};
 //!    
-//!    let color_space: &[u8] = match info.pixel_format { 
+//!    let color_space: &[u8] = match info.pixel_format {
 //!        PixelFormat::RGB24 => b"/DeviceRGB",
 //!        PixelFormat::CMYK32 => b"/DeviceCMYK",
 //!        PixelFormat::L8 | PixelFormat::L16 => b"/DeviceGray",
 //!    };
 //!
-//!    let bits_per_component = match info.pixel_format { 
+//!    let bits_per_component = match info.pixel_format {
 //!        PixelFormat::L16 => 16,
 //!        _ => 8
 //!    };
 //!
 //!    // Use img_parts::jpeg::Jpeg to make DCT (Discrete Cosine Transform) compressed data.
-//!    let cdata = 
+//!    let cdata =
 //!    {
 //!        let mut cdata = Vec::new();
 //!        let jpeg = img_parts::jpeg::Jpeg::from_bytes(file_bytes.into()).unwrap();
@@ -92,10 +92,9 @@
 //!    file.write_all(bytes).unwrap();
 //! ```
 
-
-use crate::*;
 use crate::BasicPdfWriter;
 use crate::page::Page;
+use crate::*;
 use format_bytes::write_bytes as wb;
 
 /// PDF image specification - byte data and attributes that describe how image is encoded.
@@ -136,7 +135,11 @@ impl Image {
         w.b.extend_from_slice(s.data);
         w.b.extend_from_slice(b"\nendstream");
         w.end();
-        Image { obj, width: s.width, height: s.height }
+        Image {
+            obj,
+            width: s.width,
+            height: s.height,
+        }
     }
 
     /// Draw image on page.
@@ -147,7 +150,11 @@ impl Image {
         let _ = wb!(
             &mut page.os,
             b"\nq {} 0 0 {} {} {} cm /X{} Do Q",
-            w, h, x, y, self.obj
+            w,
+            h,
+            x,
+            y,
+            self.obj
         );
     }
 }

@@ -7,7 +7,7 @@ pub struct Writer {
     /// Current Page
     pub p: Page,
     /// List of fonts
-    pub fonts: Vec<Box<dyn Font>>,
+    pub fonts: FontFamily,
     /// Index into fonts
     pub cur_font: usize,
     /// Current font size, default is 10
@@ -50,11 +50,11 @@ pub struct Writer {
 
 impl Default for Writer {
     fn default() -> Self {
-        let mut x = Self {
+        Self {
             mode: Mode::Normal,
             title: String::new(),
             b: BasicPdfWriter::default(),
-            fonts: Vec::new(),
+            fonts: helvetica(),
             cur_font: 0,
             font_size: 10,
             sup: 0,
@@ -74,11 +74,7 @@ impl Default for Writer {
             max_font_size: 0,
             center: false,
             fetcher: None,
-        };
-        for _ in 0..4 {
-            x.fonts.push(Box::<StandardFont>::default());
         }
-        x
     }
 }
 
@@ -105,36 +101,19 @@ impl Writer {
 
     fn init_font(&mut self, x: usize) {
         let f = &mut self.fonts[x];
-        f.init(&mut self.b, HELVETICA[x]);
+        f.init(&mut self.b);
     }
 
     fn width(&self, c: char) -> MPx {
-        // This is rather preliminary.
-        // Ought to get exact char width from self.cur_font.
-        // In mean time, could allow more for upper case and wide chars like 'W'
-        
-        // let w : MPx = if (self.cur_font & 1) == 1 { 550 } else { 500 }; // Allow more for bold fonts.
-
-        let c = c as usize;
-        
-        let w = if c >= 32 && c < 150
-        {
-            crate::metric::HELVETICA[ self.cur_font ][ (c - 32) as usize ]
-        }
-        else
-        {
-            if (self.cur_font & 1) == 1 { 550 } else { 500 }
-        };
-        
-        (w as MPx )* (self.font_size as MPx)
+        let f = &self.fonts[self.cur_font];
+        f.width(c) * self.font_size as MPx
     }
 
     fn line_len(&self) -> MPx {
-        ( ( self.page_width - self.margin_left - self.margin_right ) as MPx ) * 1000
+        ((self.page_width - self.margin_left - self.margin_right) as MPx) * 1000
     }
 
-    fn wrap_init(&mut self)
-    {
+    fn wrap_init(&mut self) {
         if self.new_page {
             self.init_page();
         }
@@ -143,7 +122,7 @@ impl Writer {
     fn wrap_text(&mut self, s: &str) {
         self.wrap_init();
 
-        let mut width : MPx = 0;
+        let mut width: MPx = 0;
         for c in s.chars() {
             width += self.width(c); // May depend on current font.
         }
@@ -160,21 +139,24 @@ impl Writer {
         if self.font_size > self.max_font_size {
             self.max_font_size = self.font_size;
         }
-        
-        self.line
-            .push(Item::Text(s.to_string(), self.cur_font, self.font_size, width));
+
+        self.line.push(Item::Text(
+            s.to_string(),
+            self.cur_font,
+            self.font_size,
+            width,
+        ));
     }
 
-    fn wrap_image(&mut self, im: Image, width: Px, scale: f32)
-    {
+    fn wrap_image(&mut self, im: Image, width: Px, scale: f32) {
         self.wrap_init();
-            
-        let mut width = ( width as MPx ) * 1000; // Convert width to MPx
-        
+
+        let width = (width as MPx) * 1000; // Convert width to MPx
+
         if self.line_used + width > self.line_len() {
             self.output_line();
         }
-        
+
         self.line_used += width;
         self.line.push(Item::Img(im, width, scale));
     }
@@ -185,19 +167,19 @@ impl Writer {
             self.init_page();
         } else {
             let cx = if self.center {
-                ( (self.line_len() - self.line_used) / 2000 ) as Px
+                ((self.line_len() - self.line_used) / 2000) as Px
             } else {
                 0
             };
             let h = self.max_font_size + self.line_pad;
             if self.p.y >= h + self.margin_bottom {
-                self.p.td(self.margin_left + cx  - self.p.x, -h);
+                self.p.td(self.margin_left + cx - self.p.x, -h);
             } else {
                 self.save_page();
                 self.init_page();
             }
         }
-        let mut cx : MPx = 0; // Unit is 1/1000 pixel
+        let mut cx: MPx = 0;
         for item in &self.line {
             match item {
                 Item::Text(s, f, x, w) => {
@@ -210,9 +192,9 @@ impl Writer {
                 }
                 Item::Img(im, width, scale) => {
                     self.p.flush_text();
-                    let x : f32 = (self.p.x as f32) + ( cx as f32 / 1000.0 );
+                    let x: f32 = (self.p.x as f32) + (cx as f32 / 1000.0);
                     let y = self.p.y as f32;
-                    im.draw( &mut self.p, x, y, *scale );
+                    im.draw(&mut self.p, x, y, *scale);
                     cx += width;
                     self.p.space(*width);
                 }
@@ -237,28 +219,24 @@ impl Writer {
     }
 
     /// Write image
-    pub fn image(&mut self, src: &str, awidth:Option<Px>, aheight: Option<Px>)
-    {
-       let mut bf = std::mem::take(&mut self.fetcher);
-       if let Some(f) = &mut bf
-       {
-           let im = f.image( self, src );
-           let mut width : Px = im.width;
-           let mut scale : f32 = 1.0;
-           if let Some(awidth) = awidth
-           {
-               scale = awidth as f32 / width as f32;
-               width = awidth;
-           } else if let Some(aheight) = aheight
-           {
-               scale = aheight as f32 / im.height as f32;
-               width = ( width as f32 * scale ) as Px;
-           }
-           self.wrap_image(im, width, scale);
-       } else {
-           self.text("error : no fetcher in pdf-min::Writer");
-       }
-       self.fetcher = bf;
+    pub fn image(&mut self, src: &str, awidth: Option<Px>, aheight: Option<Px>) {
+        let mut bf = std::mem::take(&mut self.fetcher);
+        if let Some(f) = &mut bf {
+            let im = f.image(self, src);
+            let mut width: Px = im.width;
+            let mut scale: f32 = 1.0;
+            if let Some(awidth) = awidth {
+                scale = awidth as f32 / width as f32;
+                width = awidth;
+            } else if let Some(aheight) = aheight {
+                scale = aheight as f32 / im.height as f32;
+                width = (width as f32 * scale) as Px;
+            }
+            self.wrap_image(im, width, scale);
+        } else {
+            self.text("error : no fetcher in pdf-min::Writer");
+        }
+        self.fetcher = bf;
     }
 
     /// Adds a space to text.
@@ -314,13 +292,17 @@ pub enum Item {
     /// Sup value ( raise text above base line )
     Sup(Px),
     /// Image, image, width, scale
-    Img(Image, MPx, f32)
+    Img(Image, MPx, f32),
 }
 
 /// Instances can fetch an image or font
 pub trait Fetcher {
     /// Fetch named image
-    fn image(&mut self, _w: &mut Writer, _name: &str) -> Image { todo!() }
+    fn image(&mut self, _w: &mut Writer, _name: &str) -> Image {
+        todo!()
+    }
     /// Fetch specified font
-    fn font(&mut self, _w: &mut Writer, _name: &str) -> Box<dyn Font>{ todo!() }
+    fn font(&mut self, _w: &mut Writer, _name: &str) -> Box<dyn Font> {
+        todo!()
+    }
 }

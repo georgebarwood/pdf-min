@@ -1,5 +1,5 @@
-use crate::*;
 use crate::font::Font;
+use crate::*;
 use format_bytes::write_bytes as wb;
 use std::collections::BTreeSet;
 
@@ -73,9 +73,8 @@ impl Page {
         font.encode(s, &mut self.text);
     }
 
-    /// Leave some space. Unit is 1/1000 pixel.
-    pub fn space(&mut self, amount: MPx)
-    {
+    /// Leave some space.
+    pub fn space(&mut self, amount: MPx) {
         let amount = amount / (self.font_size as MPx);
         let _ = wb!(&mut self.ts, b"[{}] TJ ", -amount);
     }
