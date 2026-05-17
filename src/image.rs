@@ -59,19 +59,10 @@
 //!        _ => 8
 //!    };
 //!
-//!    // Use img_parts::jpeg::Jpeg to make DCT (Discrete Cosine Transform) compressed data.
-//!    let cdata =
-//!    {
-//!        let mut cdata = Vec::new();
-//!        let jpeg = img_parts::jpeg::Jpeg::from_bytes(file_bytes.into()).unwrap();
-//!        jpeg.encoder().write_to(&mut cdata).unwrap();
-//!        cdata
-//!    };
-//!
 //!    // Make the ImageSpec.
 //!    use pdf_min::{Px, image::{ImageSpec, Image}};
 //!    let ims = ImageSpec {
-//!        data: &cdata,
+//!        data: &file_bytes,
 //!        width: info.width as Px,
 //!        height: info.height as Px,
 //!        color_space,
@@ -79,7 +70,7 @@
 //!        other: b"/Filter/DCT",
 //!    };
 //!    
-//!    // Make the Image from the ImageSpec.
+//!    // Make the PDF Image from the ImageSpec.
 //!    let im = Image::new(&ims, &mut doc.b);
 //!
 //!    // Draw the image on the current page.
@@ -114,6 +105,7 @@ pub struct ImageSpec<'a> {
 }
 
 /// PDF image - obj id, width and height
+#[derive(Clone)]
 pub struct Image {
     /// PDF obj id
     pub obj: usize,

@@ -1,4 +1,5 @@
 use crate::*;
+use pstd::collections::BTreeMap;
 
 /// Writer - has support for wrapping text, page layout, fonts, etc.
 pub struct Writer {
@@ -46,6 +47,8 @@ pub struct Writer {
     pub center: bool,
     /// For fetching fonts and images
     pub fetcher: Option<Box<dyn Fetcher>>,
+    /// Cache of images
+    pub image_cache: BTreeMap<String,Image>,
 }
 
 impl Default for Writer {
@@ -74,6 +77,7 @@ impl Default for Writer {
             max_font_size: 0,
             center: false,
             fetcher: None,
+            image_cache: BTreeMap::new(),
         }
     }
 }
@@ -218,11 +222,29 @@ impl Writer {
         }
     }
 
+    fn fetch_image(&mut self, src: &str) -> Option<Image>
+    {
+        let mut result = None;
+        if let Some(im) = self.image_cache.get(src)
+        {
+           result = Some(im.clone());
+        }
+        else
+        {
+            let mut bf = std::mem::take(&mut self.fetcher);
+            if let Some(f) = &mut bf {
+                let im = f.image(self, src);
+                self.image_cache.insert( src.to_owned(), im.clone() );
+                result = Some(im);
+            }
+            self.fetcher = bf;
+        }
+        result
+    }   
+
     /// Write image
     pub fn image(&mut self, src: &str, awidth: Option<Px>, aheight: Option<Px>) {
-        let mut bf = std::mem::take(&mut self.fetcher);
-        if let Some(f) = &mut bf {
-            let im = f.image(self, src);
+        if let Some(im) = self.fetch_image( src ) {
             let mut width: Px = im.width;
             let mut scale: f32 = 1.0;
             if let Some(awidth) = awidth {
@@ -236,7 +258,6 @@ impl Writer {
         } else {
             self.text("error : no fetcher in pdf-min::Writer");
         }
-        self.fetcher = bf;
     }
 
     /// Adds a space to text.
