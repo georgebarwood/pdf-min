@@ -1,6 +1,6 @@
 [package]
 name = "pdf-min"
-version = "0.1.21"
+version = "0.1.23"
 edition = "2024"
 authors = ["George Barwood"]
 description = "Very minimal crate for writing PDFs"
@@ -15,9 +15,10 @@ encoding_rs = "0.8.31"
 flate3 = "1.0.0"
 format-bytes = "0.3.0"
 html-escape = "0.2.11"
+pstd = "1.0.132"
 
 [dev-dependencies]
-img-parts = "0.4.0"
+#img-parts = "0.4.0"
 jpeg-decoder = "0.3.2"
 
 [package.metadata.docs.rs]
