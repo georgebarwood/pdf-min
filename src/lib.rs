@@ -57,6 +57,7 @@ pub mod writer;
 pub use html::html;
 pub use writer::Writer;
 
+use std::collections::BTreeMap;
 use basic::*;
 use font::*;
 use image::*;

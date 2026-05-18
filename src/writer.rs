@@ -1,5 +1,4 @@
 use crate::*;
-use pstd::collections::BTreeMap;
 
 /// Writer - has support for wrapping text, page layout, fonts, etc.
 pub struct Writer {
